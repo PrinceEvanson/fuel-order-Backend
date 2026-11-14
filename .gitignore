@@ -2,4 +2,5 @@
 *.db
 __pycache__/
 .venv/
-.vercel/
+.vercel/demo_pdfs/
+demo_pdfs/

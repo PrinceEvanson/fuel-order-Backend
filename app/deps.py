@@ -9,7 +9,6 @@ from .security import decode_token
 
 bearer = HTTPBearer(auto_error=False)
 
-
 def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: Session = Depends(get_db),
@@ -26,7 +25,6 @@ def get_current_user(
     if not user:
         raise HTTPException(401, "User no longer exists")
     return user
-
 
 def require_role(*roles: str):
 

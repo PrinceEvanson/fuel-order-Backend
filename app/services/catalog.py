@@ -12,18 +12,14 @@ SAMPLE_CUSTOMERS = [
     {"code": "MBY001", "name": "MBEYA ZONAL REFERRAL HOSPITAL", "sage_id": None},
 ]
 SAMPLE_PRODUCTS = [
-    {"code": "ULG", "description": "Unleaded gasoline",
-        "unit": "gallon", "sage_id": None},
-    {"code": "DSL",
-        "description": "Diesel (clear / highway)", "unit": "gallon", "sage_id": None},
-    {"code": "DSL-D",
-        "description": "Diesel (dyed / off-road)", "unit": "gallon", "sage_id": None},
+    {"code": "ULG", "description": "Unleaded gasoline", "unit": "gallon", "sage_id": None},
+    {"code": "DSL", "description": "Diesel (clear / highway)", "unit": "gallon", "sage_id": None},
+    {"code": "DSL-D", "description": "Diesel (dyed / off-road)", "unit": "gallon", "sage_id": None},
 ]
 _UNITS = {p["code"]: p["unit"] for p in SAMPLE_PRODUCTS}
 
 _cache: dict = {"at": 0.0, "value": None}
 _TTL = 60
-
 
 def get_catalog(db: Session) -> dict:
     if not sage_client.is_connected(db):
@@ -32,8 +28,7 @@ def get_catalog(db: Session) -> dict:
         return _cache["value"]
     try:
         customers = [
-            {"code": c.get("reference") or "",
-             "name": c["name"], "sage_id": c["id"]}
+            {"code": c.get("reference") or "", "name": c["name"], "sage_id": c["id"]}
             for c in sage_client.list_customers(db)
         ]
         products = [
@@ -41,13 +36,11 @@ def get_catalog(db: Session) -> dict:
              "unit": _UNITS.get(p.get("item_code") or ""), "sage_id": p["id"]}
             for p in sage_client.list_products(db)
         ]
-        value = {"customers": customers, "products": products,
-                 "source": "sage", "error": None}
+        value = {"customers": customers, "products": products, "source": "sage", "error": None}
         _cache.update(at=time.time(), value=value)
         return value
     except sage_client.SageError as e:
         return {"customers": [], "products": [], "source": "sage", "error": str(e)}
-
 
 def clear_cache() -> None:
     _cache.update(at=0.0, value=None)

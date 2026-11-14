@@ -1,9 +1,7 @@
 from .models import Document
 
-
 def _iso(d):
     return d.isoformat() if d else None
-
 
 def doc_to_dict(doc: Document, full: bool = True) -> dict:
     d = {

@@ -12,13 +12,11 @@ from ..services import catalog, sage_client
 
 router = APIRouter(prefix="/api/sage", tags=["sage"])
 
-
 @router.get("/status")
 def status(db: Session = Depends(get_db), _: User = Depends(require_role("reviewer"))):
     row = db.get(SageToken, 1)
     return {"connected": bool(row), "connected_by": row.connected_by if row else None,
             "catalog_source": "sage" if row else "sample"}
-
 
 @router.get("/connect-url")
 def connect_url(user: User = Depends(require_role("reviewer"))):
@@ -28,7 +26,6 @@ def connect_url(user: User = Depends(require_role("reviewer"))):
         return {"url": sage_client.authorize_url(state)}
     except sage_client.SageError as e:
         raise HTTPException(500, str(e))
-
 
 @router.get("/callback")
 def callback(code: str | None = None, state: str | None = None, error: str | None = None,

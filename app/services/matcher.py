@@ -12,9 +12,7 @@ _ABBREV = {
     "CTY": "COUNTY",
     "&": "AND",
 }
-_STOP = {"THE", "OF", "AND", "INC", "LLC", "LTD",
-         "LIMITED", "CO", "CORP", "CORPORATION"}
-
+_STOP = {"THE", "OF", "AND", "INC", "LLC", "LTD", "LIMITED", "CO", "CORP", "CORPORATION"}
 
 def normalize(text: str) -> str:
     t = (text or "").upper().replace("&", " AND ")
@@ -24,20 +22,16 @@ def normalize(text: str) -> str:
         words.extend(_ABBREV.get(w, w).split())
     return " ".join(words)
 
-
 def tokens(text: str) -> set[str]:
     return {w for w in normalize(text).split() if w not in _STOP}
-
 
 def _similarity(a: str, b: str) -> float:
     ta, tb = tokens(a), tokens(b)
     if not ta or not tb:
         return 0.0
-    ratio = SequenceMatcher(None, " ".join(sorted(ta)),
-                            " ".join(sorted(tb))).ratio()
+    ratio = SequenceMatcher(None, " ".join(sorted(ta)), " ".join(sorted(tb))).ratio()
     containment = len(ta & tb) / min(len(ta), len(tb))
     return round(0.5 * ratio + 0.5 * containment, 4)
-
 
 def match_customer(name: str, address: str, customers: list[dict], limit: int = 3) -> list[dict]:
     context = f"{name or ''} {address or ''}"
@@ -47,20 +41,16 @@ def match_customer(name: str, address: str, customers: list[dict], limit: int = 
         score = _similarity(name, base)
         if site and tokens(site) and tokens(site) & tokens(context):
             score = min(1.0, score + 0.15)
-        out.append({"code": c["code"], "name": c["name"], "sage_id": c.get(
-            "sage_id"), "score": round(score, 2)})
+        out.append({"code": c["code"], "name": c["name"], "sage_id": c.get("sage_id"), "score": round(score, 2)})
     out.sort(key=lambda x: x["score"], reverse=True)
     return out[:limit]
 
-
 _FUEL_RULES = [
-    ("ULG", re.compile(
-        r"unleaded|gasoline|petrol|mogas|premium|regular|\bulg\b|\bpms\b|\bgas\b", re.I)),
+    ("ULG", re.compile(r"unleaded|gasoline|petrol|mogas|premium|regular|\bulg\b|\bpms\b|\bgas\b", re.I)),
     ("DSL-D", re.compile(r"dyed|off.?road|non.?road|\bred\b|agricultur", re.I)),
     ("DSL", re.compile(r"clear|highway|on.?road|ulsd|\bago\b", re.I)),
 ]
 _DIESEL = re.compile(r"diesel|\bdsl\b|\bago\b", re.I)
-
 
 def match_product(description: str, products: list[dict], limit: int = 3) -> list[dict]:
     desc = description or ""

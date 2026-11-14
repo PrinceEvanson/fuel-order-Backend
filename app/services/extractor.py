@@ -3,6 +3,7 @@ import base64
 import anthropic
 
 from ..config import settings
+from .mock_extractor import mock_extract
 
 PO_TOOL = {
     "name": "record_purchase_order",
@@ -48,17 +49,19 @@ PROMPT = (
     "Include fuel lines only if they are order lines (not general terms)."
 )
 
-
 class ExtractionError(Exception):
     pass
 
+def use_mock() -> bool:
+    mode = settings.AI_MODE.lower()
+    return mode == "mock" or (mode == "auto" and not settings.ANTHROPIC_API_KEY)
 
-def extract_po(pdf_bytes: bytes, hints: str | None = None) -> dict:
+def extract_po(pdf_bytes: bytes, hints: str | None = None, filename: str | None = None) -> dict:
+    if use_mock():
+        return mock_extract(filename or "", hints)
     if not settings.ANTHROPIC_API_KEY:
-        raise ExtractionError(
-            "ANTHROPIC_API_KEY is not configured on the server.")
-    client = anthropic.Anthropic(
-        api_key=settings.ANTHROPIC_API_KEY, timeout=120)
+        raise ExtractionError("ANTHROPIC_API_KEY is not configured on the server.")
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=120)
     text = PROMPT
     if hints:
         text += (
@@ -81,13 +84,10 @@ def extract_po(pdf_bytes: bytes, hints: str | None = None) -> dict:
             }],
         )
     except anthropic.APIStatusError as e:
-        raise ExtractionError(
-            f"The AI service rejected the request ({e.status_code}): {e.message}")
+        raise ExtractionError(f"The AI service rejected the request ({e.status_code}): {e.message}")
     except anthropic.APIConnectionError:
-        raise ExtractionError(
-            "Could not reach the AI service. Please try again.")
+        raise ExtractionError("Could not reach the AI service. Please try again.")
     for block in resp.content:
         if block.type == "tool_use" and block.name == PO_TOOL["name"]:
             return block.input
-    raise ExtractionError(
-        "The AI did not return a structured result. Please try again or redo the scan.")
+    raise ExtractionError("The AI did not return a structured result. Please try again or redo the scan.")

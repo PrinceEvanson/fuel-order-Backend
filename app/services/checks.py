@@ -2,7 +2,6 @@ from .matcher import AUTO_ACCEPT, MIN_ACCEPT
 
 TOL = 0.01
 
-
 def to_num(v):
     if v is None or v == "":
         return None
@@ -13,17 +12,14 @@ def to_num(v):
     except ValueError:
         return None
 
-
 def flag(code: str, severity: str, message: str, field: str | None = None) -> dict:
     return {"code": code, "severity": severity, "message": message, "field": field}
-
 
 def check_math(data: dict) -> list[dict]:
     flags = []
     line_sum, all_totals = 0.0, True
     for i, ln in enumerate(data.get("lines") or []):
-        q, p, t = to_num(ln.get("quantity")), to_num(
-            ln.get("unit_price")), to_num(ln.get("line_total"))
+        q, p, t = to_num(ln.get("quantity")), to_num(ln.get("unit_price")), to_num(ln.get("line_total"))
         label = f"Line {i + 1}"
         if t is None:
             all_totals = False
@@ -46,19 +42,18 @@ def check_math(data: dict) -> list[dict]:
             ))
     return flags
 
-
 def build_flags(data: dict, match: dict) -> list[dict]:
     flags: list[dict] = []
+    if data.get("mock"):
+        flags.append(flag("MOCK_AI", "info", "AI is switched off. The values below are placeholders and must be filled in by hand."))
     if not data.get("is_purchase_order", False):
         flags.append(flag("NOT_A_PO", "error",
                           f"This does not look like a purchase order ({data.get('document_type') or 'unknown type'})."))
         return flags
     if not data.get("po_number"):
-        flags.append(flag("MISSING_PO_NUMBER", "warn",
-                     "No PO number found.", "po_number"))
+        flags.append(flag("MISSING_PO_NUMBER", "warn", "No PO number found.", "po_number"))
     if not data.get("lines"):
-        flags.append(flag("NO_LINES", "error",
-                     "No order lines found.", "lines"))
+        flags.append(flag("NO_LINES", "error", "No order lines found.", "lines"))
 
     cust = match.get("customer") or {}
     sel = cust.get("selected")
@@ -80,11 +75,9 @@ def build_flags(data: dict, match: dict) -> list[dict]:
     for i, (ln, lm) in enumerate(zip(data.get("lines") or [], match.get("lines") or [])):
         n = i + 1
         if to_num(ln.get("unit_price")) is None:
-            flags.append(flag("MISSING_PRICE", "error",
-                         f"Line {n}: no unit price on the document.", f"lines.{i}.unit_price"))
+            flags.append(flag("MISSING_PRICE", "error", f"Line {n}: no unit price on the document.", f"lines.{i}.unit_price"))
         if to_num(ln.get("quantity")) is None:
-            flags.append(flag("MISSING_QUANTITY", "error",
-                         f"Line {n}: no quantity.", f"lines.{i}.quantity"))
+            flags.append(flag("MISSING_QUANTITY", "error", f"Line {n}: no quantity.", f"lines.{i}.quantity"))
         psel = lm.get("selected")
         if not psel:
             flags.append(flag("UNKNOWN_PRODUCT", "error",
@@ -104,16 +97,13 @@ def build_flags(data: dict, match: dict) -> list[dict]:
 
     conf = data.get("confidence")
     if isinstance(conf, (int, float)) and conf < 0.7:
-        flags.append(flag("AI_UNSURE", "warn",
-                     f"The AI reported low confidence ({int(conf * 100)}%). {data.get('notes') or ''}".strip()))
+        flags.append(flag("AI_UNSURE", "warn", f"The AI reported low confidence ({int(conf * 100)}%). {data.get('notes') or ''}".strip()))
     return flags
-
 
 def ai_status_for(flags: list[dict]) -> str:
     if any(f["code"] == "EXTRACTION_FAILED" for f in flags):
         return "failed"
     return "flagged" if any(f["severity"] in ("error", "warn") for f in flags) else "passed"
-
 
 def blocking(flags: list[dict]) -> list[dict]:
     return [f for f in flags if f["severity"] == "error"]

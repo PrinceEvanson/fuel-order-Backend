@@ -9,16 +9,12 @@ if _url.startswith("postgres://"):
 elif _url.startswith("postgresql://"):
     _url = _url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
-_connect_args = {"check_same_thread": False} if _url.startswith("sqlite") else {
-}
+_connect_args = {"check_same_thread": False} if _url.startswith("sqlite") else {}
 engine = create_engine(_url, connect_args=_connect_args, pool_pre_ping=True)
-SessionLocal = sessionmaker(
-    bind=engine, autoflush=False, expire_on_commit=False)
-
+SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 class Base(DeclarativeBase):
     pass
-
 
 def get_db():
     db = SessionLocal()
