@@ -13,6 +13,7 @@ from ..models import AuditLog, Document, User
 from ..serializers import doc_to_dict
 from ..services import audit, pipeline, sage_client
 from ..services.checks import blocking, to_num
+from ..services.extractor import ExtractionError, extract_po, use_mock
 
 router = APIRouter(prefix="/api/review", tags=["review"])
 reviewer_only = require_role("reviewer")
@@ -107,6 +108,24 @@ def edit_fields(doc_id: int, body: EditIn, db: Session = Depends(get_db), user: 
     pipeline.reanalyze(db, doc)
     changed = sorted(k for k in new if new.get(k) != before.get(k))
     audit.log(db, doc.id, "edited", user, {"changed": changed, "overrides": doc.overrides})
+    db.commit()
+    return doc_to_dict(doc)
+
+@router.post("/documents/{doc_id}/rescan")
+def rescan(doc_id: int, db: Session = Depends(get_db), user: User = Depends(reviewer_only)):
+    doc = _get(db, doc_id)
+    if doc.status not in ("submitted", "post_failed"):
+        raise HTTPException(409, f"Document is {doc.status} and can no longer be re-read.")
+    if use_mock():
+        raise HTTPException(409, "AI reading is switched off. Add ANTHROPIC_API_KEY and set AI_MODE=claude in the server .env, then restart it.")
+    try:
+        data = extract_po(doc.pdf_bytes, None, doc.filename)
+    except ExtractionError as e:
+        raise HTTPException(502, str(e))
+    doc.data = pipeline._clean(data)
+    doc.overrides = {}
+    pipeline.reanalyze(db, doc)
+    audit.log(db, doc.id, "rescanned", user, {"ai_status": doc.ai_status})
     db.commit()
     return doc_to_dict(doc)
 

@@ -17,7 +17,7 @@ PO_TOOL = {
             "po_number": {"type": ["string", "null"]},
             "po_date": {"type": ["string", "null"], "description": "ISO date YYYY-MM-DD if possible"},
             "delivery_address": {"type": ["string", "null"], "description": "Delivery / ship-to location incl. site name"},
-            "currency": {"type": ["string", "null"], "description": "ISO code or symbol as printed"},
+            "currency": {"type": ["string", "null"], "description": "ISO 4217 code of the currency used on the document (KES, TZS, UGX, USD, EUR...), worked out from symbols such as KSh, TSh, $ or wording such as Kenya Shillings. Null only if no currency is shown anywhere"},
             "document_total": {"type": ["number", "null"], "description": "Grand total as printed"},
             "lines": {
                 "type": "array",
@@ -26,7 +26,7 @@ PO_TOOL = {
                     "properties": {
                         "description": {"type": "string"},
                         "quantity": {"type": ["number", "null"]},
-                        "unit": {"type": ["string", "null"], "description": "gallon, litre, etc. as printed"},
+                        "unit": {"type": ["string", "null"], "description": "Unit of measure for the quantity exactly as printed: litre, gallon, m3, barrel, kg, tonne, etc."},
                         "unit_price": {"type": ["number", "null"]},
                         "line_total": {"type": ["number", "null"]},
                     },
@@ -44,7 +44,7 @@ PO_TOOL = {
 PROMPT = (
     "Extract the purchase order from this document. It may be a scan with OCR noise, may be priced in "
     "gallons or litres, and the order may be buried inside a longer document (e.g. a bid or tender with a "
-    "sample PO). Copy values exactly as printed; do not correct arithmetic and do not convert units. "
+    "sample PO). Copy values exactly as printed; do not correct arithmetic and do not convert units or currencies. Always report the currency as an ISO code and the unit of every line as printed. "
     "If a price is missing, leave it null. If there is no real purchase order, set is_purchase_order=false. "
     "Include fuel lines only if they are order lines (not general terms)."
 )

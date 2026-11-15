@@ -12,18 +12,21 @@ PO_PROFILES = [
         "po_number": "4500101461",
         "delivery_address": "Landfill site",
         "unit": "gallon",
+        "currency": "USD",
     }),
     ("garland", {
         "customer_name": "Garland ISD",
         "po_number": None,
         "delivery_address": "Garland, TX",
         "unit": "gallon",
+        "currency": "USD",
     }),
     ("mbeya", {
         "customer_name": "Mbeya Zonal Referral Hospital",
         "po_number": None,
         "delivery_address": "Mbeya, Tanzania",
         "unit": "litre",
+        "currency": "TZS",
     }),
 ]
 
@@ -59,6 +62,7 @@ def mock_extract(filename: str, hints: str | None = None) -> dict:
             data["po_number"] = profile["po_number"]
             data["delivery_address"] = profile["delivery_address"]
             unit = profile["unit"]
+            data["currency"] = profile["currency"]
             break
     data["lines"] = [{
         "description": "Diesel",
