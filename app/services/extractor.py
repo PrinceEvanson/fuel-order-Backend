@@ -1,4 +1,5 @@
 import base64
+import time
 
 import anthropic
 
@@ -49,24 +50,21 @@ PROMPT = (
     "Include fuel lines only if they are order lines (not general terms)."
 )
 
-
 class ExtractionError(Exception):
     pass
-
 
 def use_mock() -> bool:
     mode = settings.AI_MODE.lower()
     return mode == "mock" or (mode == "auto" and not settings.ANTHROPIC_API_KEY)
 
-
 def extract_po(pdf_bytes: bytes, hints: str | None = None, filename: str | None = None) -> dict:
     if use_mock():
         return mock_extract(filename or "", hints)
     if not settings.ANTHROPIC_API_KEY:
-        raise ExtractionError(
-            "ANTHROPIC_API_KEY is not configured on the server.")
-    client = anthropic.Anthropic(
-        api_key=settings.ANTHROPIC_API_KEY, timeout=120)
+        raise ExtractionError("ANTHROPIC_API_KEY is not configured on the server.")
+    budget = settings.AI_TIMEOUT_SECONDS
+    started = time.monotonic()
+    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=budget, max_retries=0)
     text = PROMPT
     if hints:
         text += (
@@ -79,24 +77,25 @@ def extract_po(pdf_bytes: bytes, hints: str | None = None, filename: str | None 
         f"\n\nRecord your answer by calling the {PO_TOOL['name']} tool. Do not reply with plain text."
     )
     for attempt in range(2):
+        remaining = budget - (time.monotonic() - started)
+        if remaining < 8:
+            break
         try:
-            resp = client.messages.create(
+            resp = client.with_options(timeout=remaining).messages.create(
                 model=settings.ANTHROPIC_MODEL,
                 max_tokens=8192,
                 tools=[PO_TOOL],
                 tool_choice={"type": "auto"},
-                messages=[{"role": "user", "content": [document, {
-                    "type": "text", "text": text + instruction}]}],
+                messages=[{"role": "user", "content": [document, {"type": "text", "text": text + instruction}]}],
             )
         except anthropic.APIStatusError as e:
-            raise ExtractionError(
-                f"The AI service rejected the request ({e.status_code}): {e.message}")
+            raise ExtractionError(f"The AI service rejected the request ({e.status_code}): {e.message}")
+        except anthropic.APITimeoutError:
+            raise ExtractionError("The AI took too long to read this document. Try again, or use a smaller file.")
         except anthropic.APIConnectionError:
-            raise ExtractionError(
-                "Could not reach the AI service. Please try again.")
+            raise ExtractionError("Could not reach the AI service. Please try again.")
         for block in resp.content:
             if block.type == "tool_use" and block.name == PO_TOOL["name"]:
                 return block.input
         instruction += "\n\nYour last reply did not call the tool. Call it now with what the document shows."
-    raise ExtractionError(
-        "The AI did not return a structured result. Please try again or redo the scan.")
+    raise ExtractionError("The AI did not return a structured result. Please try again or redo the scan.")

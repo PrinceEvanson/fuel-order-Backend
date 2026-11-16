@@ -12,13 +12,14 @@ class Settings:
     JWT_SECRET = _get("JWT_SECRET")
     JWT_EXPIRE_MINUTES = int(_get("JWT_EXPIRE_MINUTES", "480"))
     DATABASE_URL = _get("DATABASE_URL", "sqlite:///./fuel.db")
-    ALLOWED_ORIGINS = [o.strip() for o in _get("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
-    FRONTEND_URL = _get("FRONTEND_URL", "http://localhost:5173")
+    ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in _get("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+    FRONTEND_URL = _get("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
     ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
     ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
     MAX_UPLOAD_MB = int(_get("MAX_UPLOAD_MB", "4"))
     AI_MODE = _get("AI_MODE", "auto")
+    AI_TIMEOUT_SECONDS = float(_get("AI_TIMEOUT_SECONDS", "55" if os.environ.get("VERCEL") else "120"))
     MOCK_SAGE = _get("MOCK_SAGE", "false").lower() == "true"
     REVIEWER_INVITE_CODE = _get("REVIEWER_INVITE_CODE")
 
@@ -35,5 +36,7 @@ class Settings:
                 self.JWT_SECRET = "dev-only-secret-do-not-use-in-production"
             else:
                 raise RuntimeError("JWT_SECRET must be set outside dev")
+        if self.ENV != "dev" and self.DATABASE_URL.startswith("sqlite"):
+            raise RuntimeError("DATABASE_URL must point to a hosted PostgreSQL database outside dev")
 
 settings = Settings()

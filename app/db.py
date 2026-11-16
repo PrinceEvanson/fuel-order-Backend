@@ -1,5 +1,8 @@
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from .config import settings
 
@@ -10,7 +13,8 @@ elif _url.startswith("postgresql://"):
     _url = _url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 _connect_args = {"check_same_thread": False} if _url.startswith("sqlite") else {}
-engine = create_engine(_url, connect_args=_connect_args, pool_pre_ping=True)
+_pool = {"poolclass": NullPool} if os.environ.get("VERCEL") else {"pool_pre_ping": True}
+engine = create_engine(_url, connect_args=_connect_args, **_pool)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 class Base(DeclarativeBase):
