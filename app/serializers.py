@@ -13,6 +13,7 @@ def doc_to_dict(doc: Document, full: bool = True) -> dict:
         "owner": doc.owner.name if doc.owner else None,
         "customer_name": (doc.data or {}).get("customer_name"),
         "po_number": (doc.data or {}).get("po_number"),
+        "ai_read": bool((doc.data or {}).get("ai_read_at")),
         "flag_count": len([f for f in (doc.flags or []) if f["severity"] in ("error", "warn")]),
         "created_at": _iso(doc.created_at),
         "submitted_at": _iso(doc.submitted_at),

@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from ..models import Document
 from . import checks, matcher
 from .catalog import get_catalog
 from .checks import flag, to_num
-from .extractor import ExtractionError, extract_po
+from .extractor import ExtractionError, extract_po, use_mock
 
 _LIVE = ("extracted", "submitted", "posting", "posted", "post_failed")
 
@@ -77,6 +78,8 @@ def reanalyze(db: Session, doc: Document) -> None:
 def process(db: Session, doc: Document, hints: str | None = None) -> None:
     try:
         doc.data = _clean(extract_po(doc.pdf_bytes, hints, doc.filename))
+        if not use_mock():
+            doc.data["ai_read_at"] = datetime.now(timezone.utc).isoformat()
     except ExtractionError as e:
         doc.data = {"is_purchase_order": False, "lines": []}
         doc.match = {}

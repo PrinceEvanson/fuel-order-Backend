@@ -18,6 +18,8 @@ from ..services.extractor import ExtractionError, extract_po, use_mock
 router = APIRouter(prefix="/api/review", tags=["review"])
 reviewer_only = require_role("reviewer")
 
+MAX_ACK_WARNINGS = 5
+
 VISIBLE = ("submitted", "posting", "posted", "post_failed", "rejected")
 
 def _get(db: Session, doc_id: int) -> Document:
@@ -41,7 +43,8 @@ def queue(bucket: str = "pending", db: Session = Depends(get_db), _: User = Depe
     if pick is None:
         raise HTTPException(400, "Unknown bucket")
     return {"items": [doc_to_dict(d, full=False) for d in pick],
-            "counts": {k: len(v) for k, v in pick_all(pending, rows).items()}}
+            "counts": {k: len(v) for k, v in pick_all(pending, rows).items()},
+            "ai_enabled": not use_mock()}
 
 def pick_all(pending, rows):
     return {"pending": pending, "passed": [d for d in pending if d.ai_status == "passed"],
@@ -111,23 +114,35 @@ def edit_fields(doc_id: int, body: EditIn, db: Session = Depends(get_db), user: 
     db.commit()
     return doc_to_dict(doc)
 
-@router.post("/documents/{doc_id}/rescan")
-def rescan(doc_id: int, db: Session = Depends(get_db), user: User = Depends(reviewer_only)):
-    doc = _get(db, doc_id)
-    if doc.status not in ("submitted", "post_failed"):
-        raise HTTPException(409, f"Document is {doc.status} and can no longer be re-read.")
+def _read_with_ai(db: Session, doc: Document, user: User, action: str) -> dict:
     if use_mock():
         raise HTTPException(409, "AI reading is switched off. Add ANTHROPIC_API_KEY and set AI_MODE=claude in the server .env, then restart it.")
     try:
         data = extract_po(doc.pdf_bytes, None, doc.filename)
     except ExtractionError as e:
         raise HTTPException(502, str(e))
-    doc.data = pipeline._clean(data)
+    data = pipeline._clean(data)
+    data["ai_read_at"] = datetime.now(timezone.utc).isoformat()
+    doc.data = data
     doc.overrides = {}
     pipeline.reanalyze(db, doc)
-    audit.log(db, doc.id, "rescanned", user, {"ai_status": doc.ai_status})
+    audit.log(db, doc.id, action, user, {"ai_status": doc.ai_status})
     db.commit()
     return doc_to_dict(doc)
+
+@router.post("/documents/{doc_id}/analyse")
+def analyse(doc_id: int, db: Session = Depends(get_db), user: User = Depends(reviewer_only)):
+    doc = _get(db, doc_id)
+    if doc.status not in ("submitted", "post_failed") or (doc.data or {}).get("ai_read_at"):
+        return doc_to_dict(doc)
+    return _read_with_ai(db, doc, user, "ai_read")
+
+@router.post("/documents/{doc_id}/rescan")
+def rescan(doc_id: int, db: Session = Depends(get_db), user: User = Depends(reviewer_only)):
+    doc = _get(db, doc_id)
+    if doc.status not in ("submitted", "post_failed"):
+        raise HTTPException(409, f"Document is {doc.status} and can no longer be re-read.")
+    return _read_with_ai(db, doc, user, "rescanned")
 
 class RejectIn(BaseModel):
     reason: str
@@ -161,6 +176,8 @@ def approve(doc_id: int, body: ApproveIn, db: Session = Depends(get_db), user: U
         db.commit()
         raise HTTPException(422, {"message": "Fix these before posting to Sage.", "blockers": errors})
     warns = [f for f in doc.flags if f["severity"] == "warn"]
+    if len(warns) >= MAX_ACK_WARNINGS:
+        raise HTTPException(422, {"message": f"{len(warns)} warnings is too many to acknowledge together. Fix them in Details or reject.", "blockers": warns})
     if warns and not body.acknowledge_warnings:
         raise HTTPException(422, {"message": "Confirm you have reviewed the warnings.", "blockers": warns})
 
